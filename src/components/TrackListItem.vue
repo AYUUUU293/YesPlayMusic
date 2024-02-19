@@ -10,19 +10,18 @@
     <img
       v-if="!isAlbum"
       :src="imgUrl"
+      loading="lazy"
       :class="{ hover: focus }"
       @click="goToAlbum"
     />
     <div v-if="showOrderNumber" class="no">
-      <button v-show="focus && track.playable && !isPlaying" @click="playTrack">
+      <button v-show="focus && playable && !isPlaying" @click="playTrack">
         <svg-icon
           icon-class="play"
           style="height: 14px; width: 14px"
         ></svg-icon>
       </button>
-      <span v-show="(!focus || !track.playable) && !isPlaying">{{
-        track.no
-      }}</span>
+      <span v-show="(!focus || !playable) && !isPlaying">{{ trackNo }}</span>
       <button v-show="isPlaying">
         <svg-icon
           icon-class="volume"
@@ -34,6 +33,9 @@
       <div class="container">
         <div class="title">
           {{ track.name }}
+          <span v-if="isSubTitle" :title="subTitle" class="sub-title">
+            ({{ subTitle }})
+          </span>
           <span v-if="isAlbum" class="featured">
             <ArtistsInLine
               :artists="track.ar"
@@ -43,9 +45,6 @@
           <span v-if="isAlbum && track.mark === 1318912" class="explicit-symbol"
             ><ExplicitSymbol
           /></span>
-          <span v-if="isSubTitle" :title="subTitle" class="subTitle">
-            ({{ subTitle }})
-          </span>
         </div>
         <div v-if="!isAlbum" class="artist">
           <span
@@ -60,7 +59,9 @@
     </div>
 
     <div v-if="showAlbumName" class="album">
-      <router-link :to="`/album/${album.id}`">{{ album.name }}</router-link>
+      <router-link v-if="album && album.id" :to="`/album/${album.id}`">{{
+        album.name
+      }}</router-link>
       <div></div>
     </div>
 
@@ -78,6 +79,8 @@
     <div v-if="showTrackTime" class="time">
       {{ track.dt | formatTime }}
     </div>
+
+    <div v-if="track.playCount" class="count"> {{ track.playCount }}</div>
   </div>
 </template>
 
@@ -85,6 +88,7 @@
 import ArtistsInLine from '@/components/ArtistsInLine.vue';
 import ExplicitSymbol from '@/components/ExplicitSymbol.vue';
 import { mapState } from 'vuex';
+import { isNil } from 'lodash';
 
 export default {
   name: 'TrackListItem',
@@ -92,6 +96,7 @@ export default {
 
   props: {
     trackProp: Object,
+    trackNo: Number,
     highlightPlayingTrack: {
       type: Boolean,
       default: true,
@@ -109,6 +114,9 @@ export default {
         ? this.trackProp.simpleSong
         : this.trackProp;
     },
+    playable() {
+      return this.track?.privilege?.pl > 0 || this.track?.playable;
+    },
     imgUrl() {
       let image =
         this.track?.al?.picUrl ??
@@ -117,8 +125,9 @@ export default {
       return image + '?param=224y224';
     },
     artists() {
-      if (this.track.ar !== undefined) return this.track.ar;
-      if (this.track.artists !== undefined) return this.track.artists;
+      const { ar, artists } = this.track;
+      if (!isNil(ar)) return ar;
+      if (!isNil(artists)) return artists;
       return [];
     },
     album() {
@@ -164,7 +173,7 @@ export default {
     },
     trackClass() {
       let trackClass = [this.type];
-      if (!this.track.playable && this.showUnavailableSongInGreyStyle)
+      if (!this.playable && this.showUnavailableSongInGreyStyle)
         trackClass.push('disable');
       if (this.isPlaying && this.highlightPlayingTrack)
         trackClass.push('playing');
@@ -201,6 +210,7 @@ export default {
 
   methods: {
     goToAlbum() {
+      if (this.track.al.id === 0) return;
       this.$router.push({ path: '/album/' + this.track.al.id });
     },
     playTrack() {
@@ -265,7 +275,6 @@ button {
   }
 
   .explicit-symbol.before-artist {
-    margin-right: 2px;
     .svg-icon {
       margin-bottom: -3px;
     }
@@ -308,8 +317,9 @@ button {
         font-size: 14px;
         opacity: 0.72;
       }
-      .subTitle {
-        color: #aeaeae;
+      .sub-title {
+        color: #7a7a7a;
+        opacity: 0.7;
         margin-left: 4px;
       }
     }
@@ -345,7 +355,8 @@ button {
     -webkit-line-clamp: 2;
     overflow: hidden;
   }
-  .time {
+  .time,
+  .count {
     font-size: 16px;
     width: 50px;
     cursor: default;
@@ -355,6 +366,11 @@ button {
     font-variant-numeric: tabular-nums;
     opacity: 0.88;
     color: var(--color-text);
+  }
+  .count {
+    font-weight: bold;
+    font-size: 22px;
+    line-height: 22px;
   }
 }
 
@@ -412,12 +428,13 @@ button {
   .title,
   .album,
   .time,
-  .title-and-artist .subTitle {
+  .title-and-artist .sub-title {
     color: var(--color-primary);
   }
   .title .featured,
   .artist,
-  .explicit-symbol {
+  .explicit-symbol,
+  .count {
     color: var(--color-primary);
     opacity: 0.88;
   }
